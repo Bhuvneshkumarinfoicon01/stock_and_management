@@ -1,0 +1,17 @@
+use App\Helpers\NotificationHelper;
+use Illuminate\Support\Facades\Http;
+
+INCLUDE THIS IN WHICH EVER CONTROLLER FUNCTION U WANT IN ORDER TO SHOW CUSTOM NOTIFICATION MSG
+
+//NOTIFICATION
+$userId = auth()->id();  // The user who performed the action
+        $message = 'Your Password has been successfully updated.';  // Custom message
+        $userName = auth()->user()->name;
+        $port = env('NOTIFICATION_PORT');
+        $url = "http://localhost:$port/notify";
+        $response = Http::post($url, [
+            'userId' => $userId,
+            'message' => $message,
+            'user_name' => $userName,  // Send the user's name
+        ]);
+        NotificationHelper::add(auth()->id(), $message);

@@ -1,0 +1,209 @@
+<?php
+$title = "index";
+include_once('assets/libs/header.php');
+?>
+
+
+
+<div class="page-wrapper">
+	<div class="content settings-content">
+		<div class="page-header settings-pg-header">
+			<div class="add-item d-flex">
+				<div class="page-title">
+					<h4>System Configurations</h4>
+					<h6>Manage your settings on portal</h6>
+				</div>
+			</div>
+			<ul class="table-top-head">
+				<li>
+					<a data-bs-toggle="tooltip" data-bs-placement="top" title="Refresh"><i data-feather="rotate-ccw" class="feather-rotate-ccw"></i></a>
+				</li>
+				<li>
+					<a data-bs-toggle="tooltip" data-bs-placement="top" title="Collapse" id="collapse-header"><i data-feather="chevron-up" class="feather-chevron-up"></i></a>
+				</li>
+			</ul>
+		</div>
+		<div class="row">
+			<div class="col-xl-12">
+					<div class="settings-wrapper d-flex">
+					<div class="sidebars settings-sidebar theiaStickySidebar" id="sidebar2">
+						<div class="sidebar-inner slimscroll">
+							<div id="sidebar-menu5" class="sidebar-menu">
+								<ul>
+									<li class="submenu-open">
+										<ul>
+											<li class="submenu">
+												<a href="setting.php" class="active subdrop"><i data-feather="settings"></i><span>General Settings</span><span class="menu-arrow"></span></a>
+												<ul>
+													<li ><a href="setting.php" >Reports</a></li>
+													<li><a href="notification.php" class="active">Notifications</a></li>
+													<li><a href="stock-alert.php">Stock Alerts</a></li>
+													<li><a href="preference.php">Reorder Preference</a></li>
+												</ul>
+											</li>
+										</ul>								
+									</li>
+									
+								</ul>
+							</div>
+						</div>
+					</div>
+					<div class="settings-page-wrap">
+                        <div class="content settings-content">
+					        <div class="row">
+						        <div class="col-xl-12">
+							        <div class="settings-wrapper d-flex">
+                                        <div class="settings-page-wrap">
+                                            <div class="setting-title">
+                                                <h4>Notification Settings</h4>
+                                            </div>
+                                            <div class="security-settings">
+                                                <ul>
+                                                    <li>
+                                                        <div class="security-type">
+                                                            <div class="security-title">
+                                                                <h5>Mobile Push Notifications</h5>
+                                                            </div>
+                                                        </div>
+                                                        <div class="status-toggle modal-status">
+                                                            <input type="checkbox" id="user1" class="check" checked>
+                                                            <label for="user1" class="checktoggle">	</label>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div class="security-type">
+                                                            <div class="security-title">
+                                                                <h5>Desktop Notifications</h5>
+                                                            </div>
+                                                        </div>
+                                                        <div class="status-toggle modal-status">
+                                                            <input type="checkbox" id="user2" class="check" checked>
+                                                            <label for="user2" class="checktoggle">	</label>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div class="security-type">
+                                                            <div class="security-title">
+                                                                <h5>Email Notifications</h5>
+                                                            </div>
+                                                        </div>
+                                                        <div class="status-toggle modal-status">
+                                                            <input type="checkbox" id="user3" class="check" checked>
+                                                            <label for="user3" class="checktoggle">	</label>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <div class="table-responsive no-pagination">
+                                                    <table class="table  datanew">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>General Notification</th>
+                                                                <th>Push</th>
+                                                                <th>SMS</th>
+                                                                <th>Email</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="custom-table-data">
+                                                                                                        
+                                                            <tr>
+                                                        
+                                                                <td>
+                                                                    Email Verification
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user8" class="check" checked>
+                                                                        <label for="user8" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user9" class="check" checked>
+                                                                        <label for="user9" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user10" class="check" checked>
+                                                                        <label for="user10" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                            
+                                                            <tr>
+                                                        
+                                                                <td>
+                                                                    Activity
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user14" class="check" checked>
+                                                                        <label for="user14" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user15" class="check" checked>
+                                                                        <label for="user15" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user16" class="check" checked>
+                                                                        <label for="user16" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                            <tr>
+                                                        
+                                                                <td>
+                                                                    Account
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user17" class="check" checked>
+                                                                        <label for="user17" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user18" class="check" checked>
+                                                                        <label for="user18" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="status-toggle modal-status">
+                                                                        <input type="checkbox" id="user19" class="check" checked>
+                                                                        <label for="user19" class="checktoggle"></label>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>										
+                                                        </tbody>
+                                                    </table>
+                                                    <div class="text-end settings-bottom-btn">
+                                                        <a href="javascript:void(0);" class="btn btn-cancel me-2">Reset</a>
+                                                        <a href="javascript:void(0);" class="btn btn-submit">Save Changes</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+							        </div>
+							    </div>
+					        </div>
+				        </div>
+					</div>
+				</div>
+				
+			</div>
+		</div>
+	</div>
+</div>
+
+
+       
+
+	
+<?php
+$title = "index";
+include_once('assets/libs/footer.php');
+?>

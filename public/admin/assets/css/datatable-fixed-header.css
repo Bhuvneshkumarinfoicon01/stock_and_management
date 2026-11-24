@@ -1,0 +1,68 @@
+/* Fixed table header for DataTables scrollY */
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollHead {
+    background: #fafbfe;
+    position: relative;
+    z-index: 3;
+}
+
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollHead table {
+    margin-bottom: 0 !important;
+}
+
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollHeadInner {
+    width: 100% !important;
+    box-sizing: content-box;
+}
+
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollBody {
+    border-bottom: 1px solid #dbe0e6;
+    overflow: auto !important;
+}
+
+/* Keep layout width for column sync; hide visually instead of display:none */
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollBody thead tr {
+    height: 0 !important;
+    line-height: 0;
+    visibility: hidden;
+}
+
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollBody thead th,
+.datatable-scroll-container.datatable-fixed-header .dataTables_scrollBody thead td {
+    height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    overflow: hidden;
+}
+
+[data-layout-mode="dark_mode"] .datatable-scroll-container.datatable-fixed-header .dataTables_scrollHead {
+    background: #141432;
+}
+
+[data-layout-mode="dark_mode"] .datatable-scroll-container.datatable-fixed-header .dataTables_scrollBody {
+    border-bottom-color: #2c2c50;
+}
+
+.datatable-scroll-container.datatable-infinite-scroll {
+    overflow-y: auto;
+}
+
+/* Sticky thead when "All" rows mode scrolls inside the container */
+.datatable-scroll-container.datatable-sticky-thead table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.datatable-scroll-container.datatable-sticky-thead thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fafbfe;
+    box-shadow: 0 1px 0 #dbe0e6;
+}
+
+[data-layout-mode="dark_mode"] .datatable-scroll-container.datatable-sticky-thead thead th {
+    background: #141432;
+    box-shadow: 0 1px 0 #2c2c50;
+}
