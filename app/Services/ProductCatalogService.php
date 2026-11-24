@@ -27,11 +27,16 @@ class ProductCatalogService
 
         if ($withPricing) {
             $select .= ',
+                COALESCE(
+                    MAX(CASE WHEN stocks.store_id = ? THEN COALESCE(NULLIF(stocks.cost, 0), NULLIF(stocks.average_cost, 0), NULLIF(stocks.last_purchase_price, 0)) END),
+                    MAX(COALESCE(NULLIF(stocks.cost, 0), NULLIF(stocks.average_cost, 0), NULLIF(stocks.last_purchase_price, 0))),
+                    0
+                ) as cost,
                 COALESCE(MAX(CASE WHEN stocks.store_id = ? THEN stocks.price END), MAX(stocks.price)) as price,
                 COALESCE(MAX(CASE WHEN stocks.store_id = ? THEN stocks.is_taxable END), MAX(stocks.is_taxable)) as is_taxable,
                 COALESCE(MAX(CASE WHEN stocks.store_id = ? THEN stocks.tax_rate END), MAX(stocks.tax_rate)) as tax_rate
             ';
-            $bindings = array_merge($bindings, [$storeId, $storeId, $storeId]);
+            $bindings = array_merge($bindings, [$storeId, $storeId, $storeId, $storeId]);
         }
 
         return DB::table('stocks')

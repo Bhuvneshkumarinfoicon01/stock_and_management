@@ -49,7 +49,7 @@
                     $li.attr('data-category', product.category_name || '');
                     $li.attr('data-category_id', product.category_id || '');
                     $li.attr('data-qty', product.total_quantity);
-                    $li.attr('data-price', product.price);
+                    $li.attr('data-cost', product.cost);
                     if (perLineTax) {
                         $li.attr('data-is_taxable', product.is_taxable ? 1 : 0);
                         $li.attr('data-tax_rate', product.tax_rate != null ? product.tax_rate : 0);
@@ -165,7 +165,7 @@
             $el.data('sku'),
             $el.data('category'),
             $el.data('category_id'),
-            $el.data('price'),
+            $el.data('cost'),
             null,
             false,
             perLineTax ? ($el.data('is_taxable') == 1) : undefined,
