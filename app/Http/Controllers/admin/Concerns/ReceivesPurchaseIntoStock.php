@@ -7,6 +7,7 @@ use App\Models\Stock;
 use App\Services\ProductUnitCostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 trait ReceivesPurchaseIntoStock
 {
@@ -110,6 +111,66 @@ trait ReceivesPurchaseIntoStock
                     $this->syncCostAndSellingPrice($createdStock);
                 }
             }
+        }
+    }
+
+    /**
+     * Remove returned quantities from their store inventory.
+     *
+     * @param  array<int, array{product_id: ?string, product_name: string, qty: int}>  $lines
+     */
+    protected function removeLinesFromStock(int $storeId, array $lines): void
+    {
+        $quantities = [];
+        $productNames = [];
+
+        foreach ($lines as $line) {
+            $productId = (string) ($line['product_id'] ?? '');
+            if ($productId === '') {
+                throw ValidationException::withMessages([
+                    'lines' => 'Select an inventory product for every purchase return line.',
+                ]);
+            }
+
+            $qty = (int) ($line['qty'] ?? 0);
+            if ($qty <= 0) {
+                throw ValidationException::withMessages([
+                    'lines' => 'Purchase return quantities must be greater than zero.',
+                ]);
+            }
+
+            $quantities[$productId] = ($quantities[$productId] ?? 0) + $qty;
+            $productNames[$productId] = (string) ($line['product_name'] ?? $productId);
+        }
+
+        ksort($quantities, SORT_STRING);
+        foreach ($quantities as $productId => $qty) {
+            $stock = Stock::query()
+                ->where('store_id', $storeId)
+                ->where('product_id', $productId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $stock) {
+                throw ValidationException::withMessages([
+                    'lines' => "No inventory record exists for {$productNames[$productId]} in this store.",
+                ]);
+            }
+
+            $available = (int) $stock->quantity;
+            if ($available < $qty) {
+                throw ValidationException::withMessages([
+                    'lines' => "Cannot return {$qty} units of {$productNames[$productId]}; only {$available} are in stock.",
+                ]);
+            }
+
+            $newQuantity = $available - $qty;
+            $stock->update([
+                'quantity' => $newQuantity,
+                'total_stock' => $newQuantity,
+            ]);
+
+            $this->syncCostAndSellingPrice($stock->fresh());
         }
     }
 

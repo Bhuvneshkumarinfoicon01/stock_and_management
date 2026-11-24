@@ -10,6 +10,7 @@ use App\Models\JournalLine;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\Stock;
 use App\Models\StorePurchaseItem;
@@ -436,7 +437,39 @@ class AccountingService
             return null;
         }
 
-        $mappingService = app(TransactionAccountMappingService::class);
+        $purchaseReturn = $sourceType === 'purchase_return'
+            ? PurchaseReturn::query()->find($sourceId)
+            : null;
+        $isCashReturn = $purchaseReturn && ! $purchaseReturn->supplier_purchase_invoice_id;
+        $settlementAccountCode = $isCashReturn
+            ? (string) config('accounting.accounts.cash', '1000')
+            : (string) config('accounting.accounts.accounts_payable', '2000');
+        $inventoryAmount = $purchaseReturn
+            ? round((float) $purchaseReturn->subtotal, 2)
+            : $amount;
+        $taxAmount = $purchaseReturn && ! $purchaseReturn->tax_exempt
+            ? round((float) $purchaseReturn->tax_amount, 2)
+            : 0.0;
+        $lines = array_merge(
+            [
+                [
+                    'account_code' => $settlementAccountCode,
+                    'debit' => $amount,
+                    'line_description' => $isCashReturn
+                        ? 'Cash received for purchase return'
+                        : 'Reduce supplier payable',
+                ],
+            ],
+            $this->purchaseInventoryLines($sourceType, $sourceId, $storeId, $inventoryAmount, 'credit'),
+        );
+
+        if ($taxAmount > 0) {
+            $lines[] = [
+                'account_code' => (string) config('accounting.accounts.taxation_payable', '2200'),
+                'credit' => $taxAmount,
+                'line_description' => 'Taxation payable on purchase return',
+            ];
+        }
 
         return $this->postEntry(
             $sourceType,
@@ -444,16 +477,7 @@ class AccountingService
             $entryDate,
             $reference,
             $description,
-            array_merge(
-                [
-                    [
-                        'account_id' => $mappingService->debitAccountId('purchase_invoice', (string) config('accounting.accounts.accounts_payable', '2000')),
-                        'debit' => $amount,
-                        'line_description' => 'Reduce supplier payable',
-                    ],
-                ],
-                $this->purchaseInventoryLines($sourceType, $sourceId, $storeId, $amount, 'credit'),
-            ),
+            $lines,
             $storeId,
         );
     }

@@ -697,12 +697,14 @@ class PurchaseDocumentController extends Controller
                 'tax_amount' => $taxAmount,
                 'tax_exempt' => $taxExempt,
                 'total_amount' => $totalAmount,
-                'status' => 'draft',
+                'status' => 'completed',
                 'reason' => $validated['reason'] ?? null,
             ]);
             foreach ($lines as $line) {
                 $ret->items()->create($line);
             }
+
+            $this->removeLinesFromStock((int) $validated['store_id'], $lines);
 
             try {
                 app(AccountingService::class)->postPurchaseReturn(

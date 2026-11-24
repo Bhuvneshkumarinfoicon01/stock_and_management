@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BatchPurchaseItem;
 use App\Models\GoodsReceiptNoteItem;
 use App\Models\OrderItem;
+use App\Models\PurchaseReturnItem;
 use App\Models\Stock;
 use App\Models\StockAdjustment;
 use App\Models\StockTransferItem;
@@ -493,6 +494,36 @@ class InventoryValuationService
                 'explicit_cost' => $storedCost !== null && $storedCost > 0,
                 'at' => Carbon::parse($adjustment->adjust_date)->toDateString().' 12:00:00',
                 'rank' => $isIn ? 0 : 1,
+                'seq' => $seq++,
+            ];
+        }
+
+        $purchaseReturnItems = PurchaseReturnItem::query()
+            ->join('purchase_returns as pr', 'purchase_return_items.purchase_return_id', '=', 'pr.id')
+            ->where('pr.store_id', $storeId)
+            ->where('pr.status', 'completed')
+            ->where('purchase_return_items.product_id', $productId)
+            ->whereDate('pr.return_date', '<=', $asAtDate)
+            ->orderBy('pr.return_date')
+            ->orderBy('purchase_return_items.id')
+            ->get([
+                'purchase_return_items.id',
+                'purchase_return_items.qty',
+                'pr.return_date',
+            ]);
+
+        foreach ($purchaseReturnItems as $item) {
+            $qty = (float) $item->qty;
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $events[] = [
+                'kind' => 'out',
+                'qty' => $qty,
+                'unit_cost' => null,
+                'at' => Carbon::parse($item->return_date)->toDateString().' 12:00:00',
+                'rank' => 1,
                 'seq' => $seq++,
             ];
         }
