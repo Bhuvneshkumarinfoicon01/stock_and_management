@@ -66,6 +66,15 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Invoice footer wording</label>
+                                <textarea name="invoice_footer_text" rows="3"
+                                    class="form-control @error('invoice_footer_text') is-invalid @enderror" required>{{ old('invoice_footer_text', \App\Models\OrganizationInfo::DEFAULT_INVOICE_FOOTER_TEXT) }}</textarea>
+                                <small class="text-muted">Enter the wording to print at the bottom of sales invoices. Use a new line to separate messages.</small>
+                                @error('invoice_footer_text')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                             <div class="col-lg-6 col-12 mb-3">
                                 <label class="form-label">Company logo</label>
                                 <input type="file" name="logo" accept="image/*"

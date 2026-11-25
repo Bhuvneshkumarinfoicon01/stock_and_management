@@ -24,8 +24,9 @@ class JournalEntryController extends Controller
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
             ->paginate(25);
+        $canEditJournal = $this->userCanEditJournals();
 
-        return view('admin.accounting.journals.index', compact('entries'));
+        return view('admin.accounting.journals.index', compact('entries', 'canEditJournal'));
     }
 
     public function create(): View
@@ -36,6 +37,18 @@ class JournalEntryController extends Controller
             ->get();
 
         return view('admin.accounting.journals.create', compact('accounts'));
+    }
+
+    public function edit(JournalEntry $journalEntry): View
+    {
+        $this->authorizeJournalEdit($journalEntry);
+        $journalEntry->load('lines');
+        $accounts = GlAccount::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
+
+        return view('admin.accounting.journals.create', compact('accounts', 'journalEntry'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -92,17 +105,82 @@ class JournalEntryController extends Controller
         return redirect()->route('admin.accounting.journals.index')->with('success', 'Journal saved as draft. Post it when ready.');
     }
 
+    public function update(Request $request, JournalEntry $journalEntry): RedirectResponse
+    {
+        $this->authorizeJournalEdit($journalEntry);
+        $validated = $request->validate([
+            'entry_date' => 'required|date',
+            'reference' => 'nullable|string|max:128',
+            'description' => 'nullable|string|max:2000',
+            'lines' => 'required|array|min:2',
+            'lines.*.gl_account_id' => 'required|exists:gl_accounts,id',
+            'lines.*.line_description' => 'nullable|string|max:500',
+            'lines.*.debit' => 'nullable|numeric|min:0',
+            'lines.*.credit' => 'nullable|numeric|min:0',
+        ]);
+
+        foreach ($validated['lines'] as $index => $line) {
+            $debit = round((float) ($line['debit'] ?? 0), 2);
+            $credit = round((float) ($line['credit'] ?? 0), 2);
+            if ($debit > 0 && $credit > 0) {
+                return back()->withErrors([
+                    'lines' => 'Line ' . ($index + 1) . ' cannot have both a debit and a credit.',
+                ])->withInput();
+            }
+        }
+
+        $normalized = $this->normalizeLines($validated['lines']);
+        if (count($normalized) < 2) {
+            return back()->withErrors([
+                'lines' => 'Enter at least two lines with an amount on one side (debit or credit) each.',
+            ])->withInput();
+        }
+
+        $balanceError = $this->balanceErrorMessage($normalized);
+        if ($balanceError !== null) {
+            return back()->withErrors(['lines' => $balanceError])->withInput();
+        }
+
+        DB::transaction(function () use ($journalEntry, $validated, $normalized) {
+            $entry = JournalEntry::query()
+                ->whereKey($journalEntry->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->authorizeJournalEdit($entry);
+
+            $entry->update([
+                'entry_date' => $validated['entry_date'],
+                'reference' => $validated['reference'] ?? null,
+                'description' => $validated['description'] ?? null,
+            ]);
+            $entry->lines()->delete();
+
+            foreach ($normalized as $line) {
+                $entry->lines()->create([
+                    'gl_account_id' => $line['gl_account_id'],
+                    'line_description' => $line['line_description'] ?: null,
+                    'debit' => $line['debit'],
+                    'credit' => $line['credit'],
+                ]);
+            }
+        });
+
+        return redirect()->route('admin.accounting.journals.show', $journalEntry)
+            ->with('success', 'Journal updated.');
+    }
+
     public function show(JournalEntry $journalEntry, AccountingService $accountingService): View
     {
         $journalEntry->load(['lines.glAccount', 'user']);
         $saleJournalContext = $accountingService->saleJournalDisplayContext($journalEntry);
+        $canEditJournal = $this->userCanEditJournals();
         $recordNav = RecordNavigator::links(
             JournalEntry::query()->orderByDesc('entry_date')->orderByDesc('id'),
             $journalEntry->id,
             fn ($id) => route('admin.accounting.journals.show', $id),
         );
 
-        return view('admin.accounting.journals.show', compact('journalEntry', 'saleJournalContext', 'recordNav'));
+        return view('admin.accounting.journals.show', compact('journalEntry', 'saleJournalContext', 'recordNav', 'canEditJournal'));
     }
 
     public function post(JournalEntry $journalEntry): RedirectResponse
@@ -154,6 +232,24 @@ class JournalEntryController extends Controller
         $journalEntry->delete();
 
         return redirect()->route('admin.accounting.journals.index')->with('success', 'Draft journal deleted.');
+    }
+
+    private function authorizeJournalEdit(JournalEntry $journalEntry): void
+    {
+        abort_unless($this->userCanEditJournals(), 403);
+        abort_if(
+            $journalEntry->source_type === null,
+            403,
+            'Automatically generated journals must be corrected from their source document.'
+        );
+    }
+
+    private function userCanEditJournals(): bool
+    {
+        $user = Auth::user();
+
+        return $user !== null
+            && (in_array((int) $user->role_id, [1, 2], true) || hasPermission('update', 'journal'));
     }
 
     /**

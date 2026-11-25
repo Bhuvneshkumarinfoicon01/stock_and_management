@@ -8,7 +8,7 @@
             <div class="add-item d-flex justify-content-between flex-wrap">
                 <div class="page-title">
                     <h4>Journal entries</h4>
-                    <h6>Draft journals can be edited or deleted; posted journals update the general ledger.</h6>
+                    <h6>Manual journals can be edited by administrators or employees with Journal Update permission. Editing a posted journal updates the general ledger.</h6>
                 </div>
                 <div>
                     <a href="{{ route('admin.accounting.journals.create') }}" class="btn btn-primary">New journal</a>
@@ -59,7 +59,12 @@
                                             <span class="badge bg-warning text-dark">Draft</span>
                                         @endif
                                     </td>
-                                    <td><a href="{{ route('admin.accounting.journals.show', $entry) }}" class="btn btn-sm btn-outline-primary">View</a></td>
+                                    <td class="text-nowrap">
+                                        <a href="{{ route('admin.accounting.journals.show', $entry) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        @if($entry->source_type !== null && $canEditJournal)
+                                            <a href="{{ route('admin.accounting.journals.edit', $entry) }}" class="btn btn-sm btn-primary">Edit</a>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="7">No journals yet. Create one with balanced debits and credits.</td></tr>

@@ -308,6 +308,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'middleware' => ['auth']], 
         Route::get('journals', [JournalEntryController::class, 'index'])->name('journals.index');
         Route::get('journals/create', [JournalEntryController::class, 'create'])->name('journals.create');
         Route::post('journals', [JournalEntryController::class, 'store'])->name('journals.store');
+        Route::get('journals/{journalEntry}/edit', [JournalEntryController::class, 'edit'])->name('journals.edit');
+        Route::put('journals/{journalEntry}', [JournalEntryController::class, 'update'])->name('journals.update');
         Route::get('journals/{journalEntry}', [JournalEntryController::class, 'show'])->name('journals.show');
         Route::post('journals/{journalEntry}/post', [JournalEntryController::class, 'post'])->name('journals.post');
         Route::delete('journals/{journalEntry}', [JournalEntryController::class, 'destroy'])->name('journals.destroy');

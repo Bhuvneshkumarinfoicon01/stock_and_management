@@ -57,6 +57,7 @@ class OrganizationInfoController extends Controller
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:2000',
             'website' => 'nullable|string|max:500',
+            'invoice_footer_text' => 'required|string|max:2000',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:2048',
         ]);
 
@@ -72,6 +73,7 @@ class OrganizationInfoController extends Controller
             'address' => $validated['address'] ?? null,
             'website' => $validated['website'] ?? null,
             'logo_path' => $logoPath,
+            'invoice_footer_text' => $validated['invoice_footer_text'],
         ]);
 
         return redirect()
@@ -96,6 +98,7 @@ class OrganizationInfoController extends Controller
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:2000',
             'website' => 'nullable|string|max:500',
+            'invoice_footer_text' => 'required|string|max:2000',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:2048',
             'remove_logo' => 'nullable|in:0,1',
         ]);
@@ -118,6 +121,7 @@ class OrganizationInfoController extends Controller
             'email' => $validated['email'] ?? null,
             'address' => $validated['address'] ?? null,
             'website' => $validated['website'] ?? null,
+            'invoice_footer_text' => $validated['invoice_footer_text'],
         ]);
         $organization_info->save();
 

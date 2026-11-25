@@ -69,8 +69,7 @@
                 </table>
 
                 <div class="text-center invoice-bar">
-                    <p>**VAT against this challan is payable through central registration. Thank you for your business!</p>
-                    <p>Thank You For Shopping With Us. Please Come Again</p>
+                    @include('admin.partials.invoice-footer-message', ['organizationInfo' => $organizationInfo])
                     <a href="javascript:void(0);" class="btn btn-primary no-print" id="printButton">Print Receipt</a>
                 </div>
             </div>

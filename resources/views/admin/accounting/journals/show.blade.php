@@ -12,6 +12,9 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @include('admin.partials.record-navigator')
+                    @if($journalEntry->source_type === null && $canEditJournal)
+                        <a href="{{ route('admin.accounting.journals.edit', $journalEntry) }}" class="btn btn-primary">Edit journal</a>
+                    @endif
                     <a href="{{ route('admin.accounting.journals.index') }}" class="btn btn-outline-secondary">All journals</a>
                 </div>
             </div>
