@@ -30,6 +30,7 @@ use App\Http\Controllers\admin\PerformingProductController;
 use App\Http\Controllers\admin\PermissionController;
 use App\Http\Controllers\admin\ProfitLossController;
 use App\Http\Controllers\admin\PurchaseDocumentController;
+use App\Http\Controllers\admin\SaleReturnController;
 use App\Http\Controllers\admin\RealTimeUpdatesController;
 use App\Http\Controllers\admin\ReportSectionController;
 use App\Http\Controllers\admin\SalesAnalysisSuperAdminController;
@@ -263,6 +264,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'middleware' => ['auth']], 
     Route::get('purchase-returns', [PurchaseDocumentController::class, 'purchaseReturnsIndex'])->name('purchase-returns.index');
     Route::get('purchase-returns/create', [PurchaseDocumentController::class, 'purchaseReturnsCreate'])->name('purchase-returns.create');
     Route::post('purchase-returns', [PurchaseDocumentController::class, 'purchaseReturnsStore'])->name('purchase-returns.store');
+
+    Route::get('sale-returns', [SaleReturnController::class, 'index'])->name('sale-returns.index');
+    Route::get('sale-returns/create', [SaleReturnController::class, 'create'])->name('sale-returns.create');
+    Route::post('sale-returns', [SaleReturnController::class, 'store'])->name('sale-returns.store');
 
     Route::get('goods-receipt-notes', [PurchaseDocumentController::class, 'grnIndex'])->name('goods-receipt-notes.index');
     Route::get('goods-receipt-notes/create', [PurchaseDocumentController::class, 'grnCreate'])->name('goods-receipt-notes.create');

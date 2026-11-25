@@ -27,6 +27,8 @@ class Store extends Model
         'next_purchase_order_number',
         'purchase_return_prefix',
         'next_purchase_return_number',
+        'sale_return_prefix',
+        'next_sale_return_number',
         'grn_prefix',
         'next_grn_number',
         'credit_note_prefix',

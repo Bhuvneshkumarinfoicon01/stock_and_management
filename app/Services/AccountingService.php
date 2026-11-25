@@ -12,6 +12,7 @@ use App\Models\OrderItem;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
+use App\Models\SaleReturn;
 use App\Models\Stock;
 use App\Models\StorePurchaseItem;
 use App\Models\SupplierPurchaseInvoiceItem;
@@ -480,6 +481,87 @@ class AccountingService
             $lines,
             $storeId,
         );
+    }
+
+    public function postSaleReturn(SaleReturn $saleReturn): void
+    {
+        $settlementAccountCode = $saleReturn->settlement_method === 'cash_refund'
+            ? (string) config('accounting.accounts.cash', '1000')
+            : (string) config('accounting.accounts.accounts_receivable', '1100');
+        $taxAmount = $saleReturn->tax_exempt ? 0.0 : round((float) $saleReturn->tax_amount, 2);
+        $lines = [
+            [
+                'account_id' => $this->accountId((string) config('accounting.accounts.sales_revenue', '4000')),
+                'debit' => round((float) $saleReturn->subtotal, 2),
+                'line_description' => 'Sales returns',
+            ],
+        ];
+
+        if ($taxAmount > 0) {
+            $lines[] = [
+                'account_code' => (string) config('accounting.accounts.taxation_payable', '2200'),
+                'debit' => $taxAmount,
+                'line_description' => 'Reverse taxation payable on sale return',
+            ];
+        }
+        $lines[] = [
+            'account_id' => $this->accountId($settlementAccountCode),
+            'credit' => round((float) $saleReturn->total_amount, 2),
+            'line_description' => $saleReturn->settlement_method === 'cash_refund'
+                ? 'Cash refunded to customer'
+                : 'Customer account credit',
+        ];
+
+        $reference = $saleReturn->return_number;
+        $revenueEntry = $this->postEntry(
+            'sale_return',
+            (int) $saleReturn->id,
+            $saleReturn->return_date->format('Y-m-d'),
+            $reference,
+            'Sale return — ' . $reference,
+            $lines,
+            $saleReturn->store_id ? (int) $saleReturn->store_id : null,
+        );
+        if (! $revenueEntry) {
+            throw new \RuntimeException("Could not post the sale return journal for [{$reference}].");
+        }
+
+        $costLines = [];
+        foreach ($saleReturn->items as $item) {
+            $amount = round((float) $item->qty * (float) $item->unit_cost, 2);
+            if ($amount <= 0) {
+                continue;
+            }
+            $stock = $this->stockForStoreProduct(
+                $saleReturn->store_id ? (int) $saleReturn->store_id : null,
+                (string) $item->product_id,
+            );
+            $costLines[] = [
+                'account_id' => $this->inventoryCreditAccountId($stock),
+                'debit' => $amount,
+                'line_description' => 'Inventory restored — ' . ($item->product_name ?: $item->product_id),
+            ];
+            $costLines[] = [
+                'account_id' => $this->cogsDebitAccountId($stock),
+                'credit' => $amount,
+                'line_description' => 'Reverse cost of goods sold — ' . ($item->product_name ?: $item->product_id),
+            ];
+        }
+
+        if ($costLines !== []) {
+            $costEntry = $this->postEntry(
+                'sale_return_cogs',
+                (int) $saleReturn->id,
+                $saleReturn->return_date->format('Y-m-d'),
+                $reference,
+                'Sale return inventory cost — ' . $reference,
+                $costLines,
+                $saleReturn->store_id ? (int) $saleReturn->store_id : null,
+            );
+            if (! $costEntry) {
+                throw new \RuntimeException("Could not post the sale return inventory journal for [{$reference}].");
+            }
+        }
     }
 
     public function postSupplierPayment(SupplierPayment $payment): ?JournalEntry

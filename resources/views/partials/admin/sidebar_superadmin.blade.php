@@ -240,7 +240,8 @@
 						$isAllSalesInvoicesSection = request()->routeIs(
 							'admin.sales-invoices.index',
 							'admin.sales-invoices.data',
-							'admin.sales-invoices.show'
+							'admin.sales-invoices.show',
+							'admin.sale-returns.*'
 						);
 						$isInvoiceManagementSection = request()->routeIs(
 							'admin.invoice*',
@@ -273,6 +274,7 @@
 						<li><a href="{{route('admin.credit-invoices.cash-sales')}}" class="{{ $isCashSalesInvoiceSection ? 'active' : '' }}"><i data-feather="plus-square"></i><span>Cash Sales Invoices</span></a></li>
 						--}}
 						<li><a href="{{ route('admin.sales-invoices.index') }}" class="{{ $isAllSalesInvoicesSection ? 'active' : '' }}"><i data-feather="plus-square"></i><span>All Sales Invoices</span></a></li>
+						<li><a href="{{ route('admin.sale-returns.index') }}" class="{{ $sb('admin.sale-returns.*') }}"><i data-feather="rotate-ccw"></i><span>Sale Returns</span></a></li>
 						<li><a href="{{route('admin.credit-invoices.estimates')}}" class="{{ $isEstimateInvoiceSection ? 'active' : '' }}"><i data-feather="plus-square"></i><span>All Estimates</span></a></li>
 						<li><a href="{{ route('admin.generate-invoice') }}" class="{{ $isGenerateInvoiceSection ? 'active' : '' }}"><i data-feather="trending-down"></i><span>Generate Invoice</span></a></li>
 						<li><a href="{{ route('admin.sales-invoices-on-hold') }}" class="{{ $isSalesOnHoldSection ? 'active' : '' }}"><i data-feather="pause-circle"></i><span>Invoices On Hold</span></a></li>

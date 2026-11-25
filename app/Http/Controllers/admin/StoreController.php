@@ -291,6 +291,8 @@ class StoreController extends Controller
             'purchase_order_start_number' => 'nullable|integer|min:1',
             'purchase_return_prefix' => 'nullable|string|max:32',
             'purchase_return_start_number' => 'nullable|integer|min:1',
+            'sale_return_prefix' => 'nullable|string|max:32',
+            'sale_return_start_number' => 'nullable|integer|min:1',
             'grn_prefix' => 'nullable|string|max:32',
             'grn_start_number' => 'nullable|integer|min:1',
             // Not fully wired to DB generators yet (kept for future parity with point 11).
@@ -326,6 +328,8 @@ class StoreController extends Controller
             'next_purchase_order_number' => (int) ($request->input('purchase_order_start_number') ?: 1),
             'purchase_return_prefix' => $this->normalizeOptionalPrefix($request->input('purchase_return_prefix'), 'PR'),
             'next_purchase_return_number' => (int) ($request->input('purchase_return_start_number') ?: 1),
+            'sale_return_prefix' => $this->normalizeOptionalPrefix($request->input('sale_return_prefix'), 'SR'),
+            'next_sale_return_number' => (int) ($request->input('sale_return_start_number') ?: 1),
             'grn_prefix' => $this->normalizeOptionalPrefix($request->input('grn_prefix'), 'GRN'),
             'next_grn_number' => (int) ($request->input('grn_start_number') ?: 1),
 
@@ -440,6 +444,16 @@ class StoreController extends Controller
         }
         if ($request->filled('purchase_return_start_number')) {
             $updateData['next_purchase_return_number'] = (int) $request->input('purchase_return_start_number');
+        }
+
+        if ($request->filled('sale_return_prefix')) {
+            $updateData['sale_return_prefix'] = $this->normalizeOptionalPrefix(
+                $request->input('sale_return_prefix'),
+                'SR'
+            );
+        }
+        if ($request->filled('sale_return_start_number')) {
+            $updateData['next_sale_return_number'] = (int) $request->input('sale_return_start_number');
         }
 
         if ($request->filled('grn_prefix')) {

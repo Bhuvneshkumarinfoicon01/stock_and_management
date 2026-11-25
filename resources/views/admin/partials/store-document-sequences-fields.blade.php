@@ -5,6 +5,7 @@
         ['label' => 'Purchase Invoice', 'prefix' => 'purchase_invoice_prefix', 'start' => 'purchase_invoice_start_number', 'default_prefix' => 'PINV', 'default_start' => 1],
         ['label' => 'Purchase Order', 'prefix' => 'purchase_order_prefix', 'start' => 'purchase_order_start_number', 'default_prefix' => 'PO', 'default_start' => 1],
         ['label' => 'Purchase Return', 'prefix' => 'purchase_return_prefix', 'start' => 'purchase_return_start_number', 'default_prefix' => 'PR', 'default_start' => 1],
+        ['label' => 'Sale Return', 'prefix' => 'sale_return_prefix', 'start' => 'sale_return_start_number', 'default_prefix' => 'SR', 'default_start' => 1],
         ['label' => 'GRN', 'prefix' => 'grn_prefix', 'start' => 'grn_start_number', 'default_prefix' => 'GRN', 'default_start' => 1],
         ['label' => 'Credit Note', 'prefix' => 'credit_note_prefix', 'start' => 'credit_note_start_number', 'default_prefix' => 'CN', 'default_start' => 1],
         ['label' => 'Debit Note', 'prefix' => 'debit_note_prefix', 'start' => 'debit_note_start_number', 'default_prefix' => 'DN', 'default_start' => 1],
