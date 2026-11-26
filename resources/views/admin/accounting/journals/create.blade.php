@@ -4,6 +4,14 @@
 @section('content')
 @php
     $isEditing = isset($journalEntry);
+    $existingPartyLine = $isEditing
+        ? $journalEntry->lines->first(fn ($line) => $line->supplier_id || $line->customer_id)
+        : null;
+    $existingPartyReference = $existingPartyLine?->supplier_id
+        ? 'supplier:' . $existingPartyLine->supplier_id
+        : ($existingPartyLine?->customer_id
+            ? 'customer:' . $existingPartyLine->customer_id
+            : ($journalPartyReference ?? ''));
     $existingLines = $isEditing
         ? $journalEntry->lines->map(fn ($line) => [
             'gl_account_id' => $line->gl_account_id,
@@ -31,6 +39,12 @@
         @if($isEditing && $journalEntry->isPosted())
             <div class="alert alert-warning">This journal is posted. Saving changes updates its general-ledger amounts immediately.</div>
         @endif
+        @if($isEditing && $journalEntry->source_type !== null)
+            <div class="alert alert-warning">
+                This journal was generated from {{ $journalEntry->source_type }} #{{ $journalEntry->source_id }}.
+                Editing it changes the journal entry, not the source document.
+            </div>
+        @endif
 
         <div class="card">
             <div class="card-body">
@@ -51,6 +65,35 @@
                         <div class="col-md-6">
                             <label class="form-label">Description</label>
                             <input type="text" name="description" class="form-control" value="{{ old('description', $isEditing ? $journalEntry->description : '') }}" placeholder="Optional header note">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="journal-party-reference">Name</label>
+                            <select name="party_reference" id="journal-party-reference" class="form-select">
+                                <option value="">Choose supplier or customer</option>
+                                <optgroup label="Purchase — Suppliers">
+                                    @foreach($suppliers as $supplier)
+                                        <option value="supplier:{{ $supplier->id }}"
+                                            @selected(old('party_reference', $existingPartyReference) === ('supplier:' . $supplier->id))>
+                                            {{ $supplier->company_name }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                                <optgroup label="Sale — Customers">
+                                    @foreach($customers as $customer)
+                                        <option value="customer:{{ $customer->id }}"
+                                            @selected(old('party_reference', $existingPartyReference) === ('customer:' . $customer->id))>
+                                            {{ $customer->customer_name }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            </select>
+                            <small class="text-muted">Choose the supplier or customer for this journal. The name is associated with the matching payable/receivable or cash settlement line.</small>
+                            @error('party_reference')
+                                <div class="text-danger small">{{ $message }}</div>
+                            @enderror
                         </div>
                     </div>
 
@@ -102,18 +145,27 @@
 @endsection
 
 @section('scripts')
+@php
+    $accountOptions = $accounts->map(fn ($account) => [
+        'id' => $account->id,
+        'label' => $account->code . ' — ' . $account->name,
+    ])->values();
+@endphp
 <script>
 (function () {
     var tbody = document.getElementById('journal-line-rows');
-    var accounts = @json($accounts->map(fn ($a) => ['id' => $a->id, 'label' => $a->code . ' — ' . $a->name]));
+    var accounts = @json($accountOptions);
     var idx = tbody.querySelectorAll('tr').length;
 
     function accountOptions(selected) {
-        var html = '<option value="">Choose account</option>';
+        var select = document.createElement('select');
+        select.add(new Option('Choose account', ''));
         accounts.forEach(function (a) {
-            html += '<option value="' + a.id + '"' + (String(a.id) === String(selected) ? ' selected' : '') + '>' + a.label + '</option>';
+            var option = new Option(a.label, a.id);
+            option.selected = String(a.id) === String(selected);
+            select.add(option);
         });
-        return html;
+        return select.innerHTML;
     }
 
     document.getElementById('add-line').addEventListener('click', function () {

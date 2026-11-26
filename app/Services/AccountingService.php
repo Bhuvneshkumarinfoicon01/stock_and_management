@@ -3,18 +3,23 @@
 namespace App\Services;
 
 use App\Models\CustomerPayment;
+use App\Models\Customer;
 use App\Models\GlAccount;
+use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteItem;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\SaleReturn;
 use App\Models\Stock;
+use App\Models\StorePurchase;
 use App\Models\StorePurchaseItem;
+use App\Models\Supplier;
 use App\Models\SupplierPurchaseInvoiceItem;
 use App\Models\SupplierPayment;
 use App\Models\SupplierPurchaseInvoice;
@@ -40,7 +45,7 @@ class AccountingService
     }
 
     /**
-     * @param  array<int, array{account_code?: string, account_id?: int, debit?: float, credit?: float, line_description?: string|null}>  $lines
+     * @param  array<int, array{account_code?: string, account_id?: int, supplier_id?: int|null, customer_id?: int|null, party_name?: string|null, debit?: float, credit?: float, line_description?: string|null}>  $lines
      */
     public function postEntry(
         string $sourceType,
@@ -66,9 +71,20 @@ class AccountingService
             $glAccountId = isset($line['account_id'])
                 ? (int) $line['account_id']
                 : $this->accountId($line['account_code']);
+            $supplierId = isset($line['supplier_id']) ? (int) $line['supplier_id'] : null;
+            $customerId = isset($line['customer_id']) ? (int) $line['customer_id'] : null;
+            $partyName = $line['party_name'] ?? null;
+            if ($partyName === null && $supplierId !== null) {
+                $partyName = Supplier::query()->whereKey($supplierId)->value('company_name');
+            } elseif ($partyName === null && $customerId !== null) {
+                $partyName = Customer::query()->whereKey($customerId)->value('customer_name');
+            }
 
             $normalized[] = [
                 'gl_account_id' => $glAccountId,
+                'supplier_id' => $supplierId,
+                'customer_id' => $customerId,
+                'party_name' => $partyName,
                 'line_description' => $line['line_description'] ?? null,
                 'debit' => $debit,
                 'credit' => $credit,
@@ -108,6 +124,9 @@ class AccountingService
             JournalLine::create([
                 'journal_entry_id' => $entry->id,
                 'gl_account_id' => $line['gl_account_id'],
+                'supplier_id' => $line['supplier_id'],
+                'customer_id' => $line['customer_id'],
+                'party_name' => $line['party_name'],
                 'line_description' => $line['line_description'],
                 'debit' => $line['debit'],
                 'credit' => $line['credit'],
@@ -239,6 +258,8 @@ class AccountingService
         if ($paid > 0) {
             $lines[] = [
                 'account_id' => $mappingService->debitAccountId('customer_payment', (string) config('accounting.accounts.cash', '1000')),
+                'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
+                'party_name' => $order->customer?->customer_name ?: $order->customer_name,
                 'debit' => $paid,
                 'line_description' => 'Cash received',
             ];
@@ -246,6 +267,8 @@ class AccountingService
         if ($due > 0) {
             $lines[] = [
                 'account_id' => $mappingService->debitAccountId('sale_invoice', (string) config('accounting.accounts.accounts_receivable', '1100')),
+                'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
+                'party_name' => $order->customer?->customer_name ?: $order->customer_name,
                 'debit' => $due,
                 'line_description' => 'Customer receivable',
             ];
@@ -253,6 +276,8 @@ class AccountingService
         if ($paid <= 0 && $due <= 0) {
             $lines[] = [
                 'account_id' => $mappingService->debitAccountId('sale_invoice', (string) config('accounting.accounts.accounts_receivable', '1100')),
+                'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
+                'party_name' => $order->customer?->customer_name ?: $order->customer_name,
                 'debit' => $total,
                 'line_description' => 'Customer receivable',
             ];
@@ -357,11 +382,19 @@ class AccountingService
             [
                 [
                     'account_id' => $mappingService->debitAccountId('customer_payment', (string) config('accounting.accounts.cash', '1000')),
+                    'customer_id' => ($payment->customer_id ?: $order?->customer_id)
+                        ? (int) ($payment->customer_id ?: $order?->customer_id)
+                        : null,
+                    'party_name' => $payment->customer?->customer_name ?: $order?->customer?->customer_name,
                     'debit' => $amount,
                     'line_description' => 'Payment received',
                 ],
                 [
                     'account_id' => $mappingService->creditAccountId('customer_payment', (string) config('accounting.accounts.accounts_receivable', '1100')),
+                    'customer_id' => ($payment->customer_id ?: $order?->customer_id)
+                        ? (int) ($payment->customer_id ?: $order?->customer_id)
+                        : null,
+                    'party_name' => $payment->customer?->customer_name ?: $order?->customer?->customer_name,
                     'credit' => $amount,
                     'line_description' => 'Reduce receivable',
                 ],
@@ -387,9 +420,18 @@ class AccountingService
         $mappingService = app(TransactionAccountMappingService::class);
         $inventoryAmount = $amount;
         $taxAmount = 0.0;
+        $invoice = $sourceType === 'supplier_purchase_invoice'
+            ? SupplierPurchaseInvoice::query()->find($sourceId)
+            : null;
+        $supplierId = match ($sourceType) {
+            'supplier_purchase_invoice' => $invoice?->supplier_id,
+            'purchase_order' => PurchaseOrder::query()->whereKey($sourceId)->value('supplier_id'),
+            'store_purchase' => StorePurchase::query()->whereKey($sourceId)->value('supplier_id'),
+            'goods_receipt_note' => GoodsReceiptNote::query()->whereKey($sourceId)->value('supplier_id'),
+            default => null,
+        };
 
         if ($sourceType === 'supplier_purchase_invoice') {
-            $invoice = SupplierPurchaseInvoice::query()->find($sourceId);
             if ($invoice) {
                 $inventoryAmount = round((float) ($invoice->subtotal ?? $amount), 2);
                 $taxAmount = $invoice->tax_exempt ? 0.0 : round((float) ($invoice->tax_amount ?? 0), 2);
@@ -409,6 +451,7 @@ class AccountingService
 
         $lines[] = [
             'account_id' => $mappingService->creditAccountId('purchase_invoice', (string) config('accounting.accounts.accounts_payable', '2000')),
+            'supplier_id' => $supplierId ? (int) $supplierId : null,
             'credit' => $amount,
             'line_description' => 'Supplier payable',
         ];
@@ -451,16 +494,20 @@ class AccountingService
         $taxAmount = $purchaseReturn && ! $purchaseReturn->tax_exempt
             ? round((float) $purchaseReturn->tax_amount, 2)
             : 0.0;
+        $settlementLine = [
+            'account_code' => $settlementAccountCode,
+            'debit' => $amount,
+            'line_description' => $isCashReturn
+                ? 'Cash received for purchase return'
+                : 'Reduce supplier payable',
+        ];
+        if ($purchaseReturn?->supplier_id) {
+            $settlementLine['supplier_id'] = (int) $purchaseReturn->supplier_id;
+            $settlementLine['party_name'] = $purchaseReturn->supplier?->company_name;
+        }
+
         $lines = array_merge(
-            [
-                [
-                    'account_code' => $settlementAccountCode,
-                    'debit' => $amount,
-                    'line_description' => $isCashReturn
-                        ? 'Cash received for purchase return'
-                        : 'Reduce supplier payable',
-                ],
-            ],
+            [$settlementLine],
             $this->purchaseInventoryLines($sourceType, $sourceId, $storeId, $inventoryAmount, 'credit'),
         );
 
@@ -504,13 +551,18 @@ class AccountingService
                 'line_description' => 'Reverse taxation payable on sale return',
             ];
         }
-        $lines[] = [
+        $settlementLine = [
             'account_id' => $this->accountId($settlementAccountCode),
             'credit' => round((float) $saleReturn->total_amount, 2),
             'line_description' => $saleReturn->settlement_method === 'cash_refund'
                 ? 'Cash refunded to customer'
                 : 'Customer account credit',
         ];
+        if ($saleReturn->customer_id) {
+            $settlementLine['customer_id'] = (int) $saleReturn->customer_id;
+            $settlementLine['party_name'] = $saleReturn->customer?->customer_name;
+        }
+        $lines[] = $settlementLine;
 
         $reference = $saleReturn->return_number;
         $revenueEntry = $this->postEntry(
@@ -538,11 +590,13 @@ class AccountingService
             );
             $costLines[] = [
                 'account_id' => $this->inventoryCreditAccountId($stock),
+                'customer_id' => $saleReturn->customer_id ? (int) $saleReturn->customer_id : null,
                 'debit' => $amount,
                 'line_description' => 'Inventory restored — ' . ($item->product_name ?: $item->product_id),
             ];
             $costLines[] = [
                 'account_id' => $this->cogsDebitAccountId($stock),
+                'customer_id' => $saleReturn->customer_id ? (int) $saleReturn->customer_id : null,
                 'credit' => $amount,
                 'line_description' => 'Reverse cost of goods sold — ' . ($item->product_name ?: $item->product_id),
             ];
@@ -582,11 +636,15 @@ class AccountingService
             [
                 [
                     'account_id' => $mappingService->debitAccountId('supplier_payment', (string) config('accounting.accounts.accounts_payable', '2000')),
+                    'supplier_id' => $payment->supplier_id ? (int) $payment->supplier_id : null,
+                    'party_name' => $payment->supplier?->company_name,
                     'debit' => $amount,
                     'line_description' => 'Pay supplier',
                 ],
                 [
                     'account_id' => $mappingService->creditAccountId('supplier_payment', (string) config('accounting.accounts.cash', '1000')),
+                    'supplier_id' => $payment->supplier_id ? (int) $payment->supplier_id : null,
+                    'party_name' => $payment->supplier?->company_name,
                     'credit' => $amount,
                     'line_description' => 'Cash paid',
                 ],
@@ -1026,13 +1084,13 @@ class AccountingService
             ->where('status', 'posted')
             ->where('source_id', $order->id)
             ->whereIn('source_type', $saleSourceTypes)
-            ->with(['lines.glAccount'])
+            ->with(['lines.glAccount', 'lines.customer', 'lines.supplier'])
             ->orderByRaw("CASE source_type WHEN 'order_sale' THEN 1 WHEN 'order' THEN 1 WHEN 'order_cogs' THEN 2 ELSE 3 END")
             ->orderBy('id')
             ->get();
 
         if ($relatedJournals->isEmpty()) {
-            $journalEntry->loadMissing(['lines.glAccount']);
+            $journalEntry->loadMissing(['lines.glAccount', 'lines.customer', 'lines.supplier']);
             $relatedJournals = collect([$journalEntry]);
         }
 
@@ -1075,9 +1133,16 @@ class AccountingService
             foreach ($journal->lines as $line) {
                 $debit = round((float) $line->debit, 2);
                 $credit = round((float) $line->credit, 2);
+                $partyName = $line->party_name
+                    ?: $line->supplier?->company_name
+                    ?: $line->customer?->customer_name;
+                if (! $partyName && $line->line_description === 'Customer receivable') {
+                    $partyName = $order->customer?->customer_name ?: $order->customer_name;
+                }
                 $rows[] = [
                     'date' => $first ? $dateLabel : '',
                     'particulars' => $line->glAccount->code . ' - ' . $line->glAccount->name,
+                    'name' => $partyName ?? '',
                     'memo' => (string) ($line->line_description ?? ''),
                     'debit' => $debit > 0 ? $debit : null,
                     'credit' => $credit > 0 ? $credit : null,
@@ -1094,7 +1159,7 @@ class AccountingService
 
         return [
             'invoice_number' => $order->invoice_number ?: ('INV/' . $order->id),
-            'customer_name' => $order->customer_name ?: ($order->customer->name ?? ('Customer #' . $order->customer_id)),
+            'customer_name' => $order->customer?->customer_name ?: ($order->customer_name ?: ('Customer #' . $order->customer_id)),
             // 'entry_date' => $journalEntry->entry_date->format('d-M-y'),
             'entry_date' => format_date($journalEntry->entry_date),
             'invoice_lines' => $invoiceLines,

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use App\Models\GlAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
+use App\Models\SaleReturn;
+use App\Models\Supplier;
 use App\Services\AccountingService;
 use App\Services\RecordNavigator;
 use Illuminate\Http\RedirectResponse;
@@ -25,8 +28,9 @@ class JournalEntryController extends Controller
             ->orderByDesc('id')
             ->paginate(25);
         $canEditJournal = $this->userCanEditJournals();
+        $canEditGeneratedJournals = $this->userIsSuperAdmin();
 
-        return view('admin.accounting.journals.index', compact('entries', 'canEditJournal'));
+        return view('admin.accounting.journals.index', compact('entries', 'canEditJournal', 'canEditGeneratedJournals'));
     }
 
     public function create(): View
@@ -35,20 +39,33 @@ class JournalEntryController extends Controller
             ->where('is_active', true)
             ->orderBy('code')
             ->get();
+        $suppliers = Supplier::query()->orderBy('company_name')->get(['id', 'company_name']);
+        $customers = Customer::query()->orderBy('customer_name')->get(['id', 'customer_name']);
 
-        return view('admin.accounting.journals.create', compact('accounts'));
+        return view('admin.accounting.journals.create', compact('accounts', 'suppliers', 'customers'));
     }
 
     public function edit(JournalEntry $journalEntry): View
     {
         $this->authorizeJournalEdit($journalEntry);
         $journalEntry->load('lines');
+        $sourceParty = $this->sourcePartyForJournal($journalEntry);
+        $existingPartyLine = $journalEntry->lines->first(
+            fn (JournalLine $line) => $line->supplier_id || $line->customer_id
+        );
+        $journalPartyReference = $existingPartyLine?->supplier_id
+            ? 'supplier:' . $existingPartyLine->supplier_id
+            : ($existingPartyLine?->customer_id
+                ? 'customer:' . $existingPartyLine->customer_id
+                : ($sourceParty['reference'] ?? ''));
         $accounts = GlAccount::query()
             ->where('is_active', true)
             ->orderBy('code')
             ->get();
+        $suppliers = Supplier::query()->orderBy('company_name')->get(['id', 'company_name']);
+        $customers = Customer::query()->orderBy('customer_name')->get(['id', 'customer_name']);
 
-        return view('admin.accounting.journals.create', compact('accounts', 'journalEntry'));
+        return view('admin.accounting.journals.create', compact('accounts', 'journalEntry', 'journalPartyReference', 'suppliers', 'customers'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -57,6 +74,7 @@ class JournalEntryController extends Controller
             'entry_date' => 'required|date',
             'reference' => 'nullable|string|max:128',
             'description' => 'nullable|string|max:2000',
+            'party_reference' => 'nullable|string|max:64',
             'lines' => 'required|array|min:2',
             'lines.*.gl_account_id' => 'required|exists:gl_accounts,id',
             'lines.*.line_description' => 'nullable|string|max:500',
@@ -72,7 +90,10 @@ class JournalEntryController extends Controller
             }
         }
 
-        $normalized = $this->normalizeLines($validated['lines']);
+        $normalized = $this->normalizeLines($this->attachParties(
+            $validated['lines'],
+            $validated['party_reference'] ?? null,
+        ));
         if (count($normalized) < 2) {
             return back()->withErrors(['lines' => 'Enter at least two lines with an amount on one side (debit or credit) each.'])->withInput();
         }
@@ -95,6 +116,9 @@ class JournalEntryController extends Controller
                 JournalLine::create([
                     'journal_entry_id' => $entry->id,
                     'gl_account_id' => $line['gl_account_id'],
+                    'supplier_id' => $line['supplier_id'],
+                    'customer_id' => $line['customer_id'],
+                    'party_name' => $line['party_name'],
                     'line_description' => $line['line_description'] ?: null,
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
@@ -112,6 +136,7 @@ class JournalEntryController extends Controller
             'entry_date' => 'required|date',
             'reference' => 'nullable|string|max:128',
             'description' => 'nullable|string|max:2000',
+            'party_reference' => 'nullable|string|max:64',
             'lines' => 'required|array|min:2',
             'lines.*.gl_account_id' => 'required|exists:gl_accounts,id',
             'lines.*.line_description' => 'nullable|string|max:500',
@@ -129,7 +154,11 @@ class JournalEntryController extends Controller
             }
         }
 
-        $normalized = $this->normalizeLines($validated['lines']);
+        $normalized = $this->normalizeLines($this->attachParties(
+            $validated['lines'],
+            $validated['party_reference'] ?? null,
+            $journalEntry->source_type,
+        ));
         if (count($normalized) < 2) {
             return back()->withErrors([
                 'lines' => 'Enter at least two lines with an amount on one side (debit or credit) each.',
@@ -158,6 +187,9 @@ class JournalEntryController extends Controller
             foreach ($normalized as $line) {
                 $entry->lines()->create([
                     'gl_account_id' => $line['gl_account_id'],
+                    'supplier_id' => $line['supplier_id'],
+                    'customer_id' => $line['customer_id'],
+                    'party_name' => $line['party_name'],
                     'line_description' => $line['line_description'] ?: null,
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
@@ -171,16 +203,25 @@ class JournalEntryController extends Controller
 
     public function show(JournalEntry $journalEntry, AccountingService $accountingService): View
     {
-        $journalEntry->load(['lines.glAccount', 'user']);
+        $journalEntry->load(['lines.glAccount', 'lines.supplier', 'lines.customer', 'user']);
+        $partyLine = $journalEntry->lines->first(
+            fn (JournalLine $line) => $line->party_name || $line->supplier_id || $line->customer_id
+        );
+        $journalPartyName = $partyLine?->party_name
+            ?: $partyLine?->supplier?->company_name
+            ?: $partyLine?->customer?->customer_name;
+        $sourceParty = $this->sourcePartyForJournal($journalEntry);
+        $journalPartyName = $journalPartyName ?: ($sourceParty['name'] ?? null);
         $saleJournalContext = $accountingService->saleJournalDisplayContext($journalEntry);
         $canEditJournal = $this->userCanEditJournals();
+        $canEditGeneratedJournals = $this->userIsSuperAdmin();
         $recordNav = RecordNavigator::links(
             JournalEntry::query()->orderByDesc('entry_date')->orderByDesc('id'),
             $journalEntry->id,
             fn ($id) => route('admin.accounting.journals.show', $id),
         );
 
-        return view('admin.accounting.journals.show', compact('journalEntry', 'saleJournalContext', 'recordNav', 'canEditJournal'));
+        return view('admin.accounting.journals.show', compact('journalEntry', 'journalPartyName', 'saleJournalContext', 'recordNav', 'canEditJournal', 'canEditGeneratedJournals'));
     }
 
     public function post(JournalEntry $journalEntry): RedirectResponse
@@ -238,10 +279,17 @@ class JournalEntryController extends Controller
     {
         abort_unless($this->userCanEditJournals(), 403);
         abort_if(
-            $journalEntry->source_type === null,
+            $journalEntry->source_type !== null && ! $this->userIsSuperAdmin(),
             403,
             'Automatically generated journals must be corrected from their source document.'
         );
+    }
+
+    private function userIsSuperAdmin(): bool
+    {
+        $user = Auth::user();
+
+        return $user !== null && (int) $user->role_id === 1;
     }
 
     private function userCanEditJournals(): bool
@@ -254,7 +302,169 @@ class JournalEntryController extends Controller
 
     /**
      * @param  array<int, array<string, mixed>>  $lines
-     * @return array<int, array{gl_account_id: int, line_description: string|null, debit: float, credit: float}>
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachParties(array $lines, ?string $partyReference, ?string $sourceType = null): array
+    {
+        $accounts = GlAccount::query()
+            ->whereIn('id', collect($lines)->pluck('gl_account_id')->unique())
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('id');
+        $selectedPartyType = null;
+        $partyId = null;
+        $partyName = null;
+        if ($partyReference !== null && $partyReference !== '') {
+            if (! preg_match('/^(supplier|customer):([1-9][0-9]*)$/', $partyReference, $matches)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'party_reference' => 'Choose a supplier for a purchase or a customer for a sale.',
+                ]);
+            }
+
+            $selectedPartyType = $matches[1];
+            $partyId = (int) $matches[2];
+            if ($selectedPartyType === 'supplier') {
+                $supplier = Supplier::query()->find($partyId);
+                if (! $supplier) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'party_reference' => 'The selected supplier no longer exists.',
+                    ]);
+                }
+                $partyName = $supplier->company_name;
+            } else {
+                $customer = Customer::query()->find($partyId);
+                if (! $customer) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'party_reference' => 'The selected customer no longer exists.',
+                    ]);
+                }
+                $partyName = $customer->customer_name;
+            }
+        }
+
+        $partyAssigned = false;
+        $cashLineIndexes = [];
+        $activeLineIndexes = [];
+        foreach ($lines as $index => &$line) {
+            $line['supplier_id'] = null;
+            $line['customer_id'] = null;
+            $line['party_name'] = null;
+            if (
+                round((float) ($line['debit'] ?? 0), 2) <= 0
+                && round((float) ($line['credit'] ?? 0), 2) <= 0
+            ) {
+                continue;
+            }
+
+            $account = $accounts->get((int) $line['gl_account_id']);
+            if (! $account) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "lines.{$index}.gl_account_id" => 'Choose an active account for this journal line.',
+                ]);
+            }
+
+            $activeLineIndexes[] = $index;
+            $accountPartyType = $this->counterpartyTypeForAccount($account);
+            if ($accountPartyType === null) {
+                if ($this->isCashAccount($account)) {
+                    $cashLineIndexes[] = $index;
+                }
+                continue;
+            }
+
+            if ($selectedPartyType !== $accountPartyType) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'party_reference' => 'Choose a supplier for Accounts Payable or a customer for Accounts Receivable.',
+                ]);
+            }
+
+            if ($accountPartyType === 'supplier') {
+                $line['supplier_id'] = $partyId;
+            } else {
+                $line['customer_id'] = $partyId;
+            }
+            $line['party_name'] = $partyName;
+            $partyAssigned = true;
+        }
+        unset($line);
+
+        if ($selectedPartyType !== null && ! $partyAssigned) {
+            if ($sourceType === 'sale_return_cogs' && $selectedPartyType === 'customer') {
+                foreach ($activeLineIndexes as $index) {
+                    $lines[$index]['customer_id'] = $partyId;
+                    $lines[$index]['party_name'] = $partyName;
+                }
+                $partyAssigned = $activeLineIndexes !== [];
+            } elseif ($cashLineIndexes !== []) {
+                $lineIndex = $cashLineIndexes[0];
+                $lines[$lineIndex][$selectedPartyType . '_id'] = $partyId;
+                $lines[$lineIndex]['party_name'] = $partyName;
+                $partyAssigned = true;
+            }
+
+            if (! $partyAssigned) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'party_reference' => 'Choose a customer for Accounts Receivable or a cash settlement line, or a supplier for Accounts Payable or a cash settlement line.',
+                ]);
+            }
+        }
+
+        return $lines;
+    }
+
+    private function isCashAccount(GlAccount $account): bool
+    {
+        return (string) $account->code === (string) config('accounting.accounts.cash', '1000')
+            || str_starts_with(strtolower(trim($account->name)), 'cash on hand');
+    }
+
+    /**
+     * @return array{reference: string, name: string|null}|null
+     */
+    private function sourcePartyForJournal(JournalEntry $journalEntry): ?array
+    {
+        if (
+            ! in_array($journalEntry->source_type, ['sale_return', 'sale_return_cogs'], true)
+            || ! $journalEntry->source_id
+        ) {
+            return null;
+        }
+
+        $saleReturn = SaleReturn::query()
+            ->with('customer')
+            ->find($journalEntry->source_id);
+        if (! $saleReturn?->customer_id) {
+            return null;
+        }
+
+        return [
+            'reference' => 'customer:' . $saleReturn->customer_id,
+            'name' => $saleReturn->customer?->customer_name,
+        ];
+    }
+
+    private function counterpartyTypeForAccount(GlAccount $account): ?string
+    {
+        $name = strtolower(trim($account->name));
+        if (
+            (string) $account->code === (string) config('accounting.accounts.accounts_payable', '2000')
+            || str_starts_with($name, 'accounts payable')
+        ) {
+            return 'supplier';
+        }
+        if (
+            (string) $account->code === (string) config('accounting.accounts.accounts_receivable', '1100')
+            || str_starts_with($name, 'accounts receivable')
+        ) {
+            return 'customer';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $lines
+     * @return array<int, array{gl_account_id: int, supplier_id: ?int, customer_id: ?int, party_name: ?string, line_description: string|null, debit: float, credit: float}>
      */
     private function normalizeLines(array $lines): array
     {
@@ -270,6 +480,9 @@ class JournalEntryController extends Controller
             }
             $out[] = [
                 'gl_account_id' => (int) $line['gl_account_id'],
+                'supplier_id' => $line['supplier_id'] ?? null,
+                'customer_id' => $line['customer_id'] ?? null,
+                'party_name' => $line['party_name'] ?? null,
                 'line_description' => isset($line['line_description']) ? (string) $line['line_description'] : null,
                 'debit' => $debit,
                 'credit' => $credit,

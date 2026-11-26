@@ -61,7 +61,7 @@
                                     </td>
                                     <td class="text-nowrap">
                                         <a href="{{ route('admin.accounting.journals.show', $entry) }}" class="btn btn-sm btn-outline-primary">View</a>
-                                        @if($entry->source_type !== null && $canEditJournal)
+                                        @if($canEditJournal && ($entry->source_type === null || $canEditGeneratedJournals))
                                             <a href="{{ route('admin.accounting.journals.edit', $entry) }}" class="btn btn-sm btn-primary">Edit</a>
                                         @endif
                                     </td>

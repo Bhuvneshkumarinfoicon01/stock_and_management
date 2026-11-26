@@ -12,7 +12,7 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @include('admin.partials.record-navigator')
-                    @if($journalEntry->source_type === null && $canEditJournal)
+                    @if($canEditJournal && ($journalEntry->source_type === null || $canEditGeneratedJournals))
                         <a href="{{ route('admin.accounting.journals.edit', $journalEntry) }}" class="btn btn-primary">Edit journal</a>
                     @endif
                     <a href="{{ route('admin.accounting.journals.index') }}" class="btn btn-outline-secondary">All journals</a>
@@ -42,6 +42,7 @@
                     @if($journalEntry->description)
                         <p class="mb-0"><strong>Description:</strong> {{ $journalEntry->description }}</p>
                     @endif
+                    <p class="mb-0"><strong>Name:</strong> {{ $journalPartyName ?: $saleJournalContext['customer_name'] }}</p>
                     @if(count($saleJournalContext['related_journal_ids'] ?? []) > 1)
                         <p class="mb-0 text-muted small">Related journals:
                             @foreach($saleJournalContext['related_journal_ids'] as $jid)
@@ -59,8 +60,6 @@
             <div class="card mb-3 border">
                 <div class="card-body sale-journal-document">
                     <p class="mb-1"><strong>Invoice #:</strong> {{ $saleJournalContext['invoice_number'] }}</p>
-                    <p class="mb-3"><strong>Customer:</strong> {{ $saleJournalContext['customer_name'] }}</p>
-
                     @foreach($saleJournalContext['invoice_lines'] as $line)
                         <p class="mb-1">
                             <strong>{{ $line['product_name'] }}</strong>
@@ -168,6 +167,7 @@
                     @if($journalEntry->description)
                         <p class="mb-0"><strong>Description:</strong> {{ $journalEntry->description }}</p>
                     @endif
+                    <p class="mb-0"><strong>Name:</strong> {{ $journalPartyName ?: '—' }}</p>
                     @if($journalEntry->user)
                         <p class="mb-0 text-muted small">Created by {{ $journalEntry->user->name ?? ('User #' . $journalEntry->user_id) }}</p>
                     @endif
